@@ -7,7 +7,7 @@
 **关于LabelEncoder**
 sklearn的preprocessing包主要是用于数据预处理的。
 preprocessing中的LabelEncoder用于将标签进行标准化，它可以将标签分配为0-n_classes-1之间的编码
-后面再说本次代码用到的地方
+后面再说本次代码用到的地方 
 
 
 
