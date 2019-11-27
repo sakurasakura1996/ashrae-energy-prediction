@@ -8,32 +8,29 @@ import datetime
 import gc
 
 # 加载数据
-train_data = pd.read_csv('work/train.csv')
+train_data = pd.read_csv('F:\deeplearning_dataset\\ashrae-energy-prediction\\train.csv')
 print(train_data.shape)
 
 # train_data.info()
 # train_data.head()
 # train_data.describe()
 
-# 数据量太大，我们要想着合理划分使用，首先，看看train_data 中的列，电表代码，测试时间，电表值，我们可以把四种电表值分开来算
-train_data_meter0 = train_data[train_data.meter == 0]
-train_data_meter1 = train_data[train_data.meter == 1]
-train_data_meter2 = train_data[train_data.meter == 2]
-train_data_meter3 = train_data[train_data.meter == 3]
-print(train_data_meter0.shape)  # 电表id为1 的数据明显多于其他几个
-print(train_data_meter1.shape)
-print(train_data_meter2.shape)
-print(train_data_meter3.shape)
+# # 数据量太大，我们要想着合理划分使用，首先，看看train_data 中的列，电表代码，测试时间，电表值，我们可以把四种电表值分开来算
+# train_data_meter0 = train_data[train_data.meter == 0]
+# train_data_meter1 = train_data[train_data.meter == 1]
+# train_data_meter2 = train_data[train_data.meter == 2]
+# train_data_meter3 = train_data[train_data.meter == 3]
+# print(train_data_meter0.shape)  # 电表id为1 的数据明显多于其他几个
+# print(train_data_meter1.shape)
+# print(train_data_meter2.shape)
+# print(train_data_meter3.shape)
 
 # remove outliers 去除离群值
 train_df = train_data[train_data['building_id'] != 1099]
 train_df = train_df.query('not (building_id <= 104 & meter ==0 & timestamp <="2016-05-20")')
 
-building_df = pd.read_csv('work/building_metadata.csv')
-weather_df = pd.read_csv('work/weather_train.csv')
-
-
-# In[20]:
+building_df = pd.read_csv('F:\deeplearning_dataset\\ashrae-energy-prediction\\building_metadata.csv')
+weather_df = pd.read_csv('F:\deeplearning_dataset\\ashrae-energy-prediction\weather_train.csv')
 
 
 # Utility Functions
@@ -185,42 +182,26 @@ def features_engineering(df):
     return df
 
 
-# In[23]:
-
-
 # Fill Weather Information
 # using this kernel to handle missing weather information
 weather_df = fill_weather_dataset(weather_df)
-
-# In[26]:
 
 
 # Memory reduction
 train_df = reduce_mem_usage(train_df, use_float16=True)
 building_df = reduce_mem_usage(building_df, use_float16=True)
 weather_df = reduce_mem_usage(weather_df, use_float16=True)
-
-# In[27]:
-
+gc.collect()
 
 # Merge Data   We need to add building and weather information into training dataset.
-train_df = train_df.merge(buildinf_df, left_on='building_id', right_on='building_id', how='left')
+train_df = train_df.merge(building_df, left_on='building_id', right_on='building_id', how='left')
 train_df = train_df.merge(weather_df, how='left', left_on=['site_id', 'timestamp'], right_on=['site_id', 'timestamp'])
 del weather_df
 gc.collect()
 
-# In[28]:
-
 
 # Features Engineering
 train_df = features_engineering(train_df)
-
-# In[29]:
-
-
-train_df.head(20)
-
-# In[30]:
 
 
 # Features & Target Varibales
@@ -229,15 +210,12 @@ features = train_df.drop('meter_reading', axis=1)
 del train_df
 gc.collect()
 
-# In[31]:
-
-
 # KFold LightGBM Model
 categorical_features = ["building_id", "site_id", "meter", "primary_use", "is_holiday", "weekend"]
 params = {
     "objective": "regression",
     "boosting": "gbdt",
-    "num_leaves": 1280,
+    "num_leaves": 1000,
     "learning_rate": 0.05,
     "feature_fraction": 0.85,
     "reg_lambda": 2,
@@ -264,22 +242,15 @@ for train_index, test_index in kf.split(features):
     del train_features, train_target, test_features, test_target, d_training, d_test
     gc.collect()
 
-# In[32]:
-
 
 del features, target
 gc.collect()
 
-# In[34]:
-
-
 # Load test data
-test_df = pd.read_csv('work/test.csv')
+test_df = pd.read_csv('F:\deeplearning_dataset\\ashrae-energy-prediction\\test.csv')
 row_ids = test_df["row_id"]
 test_df.drop("row_id", axis=1, inplace=True)
 test_df = reduce_mem_usage(test_df)
-
-# In[35]:
 
 
 # Merge Building Data
@@ -287,15 +258,14 @@ test_df = test_df.merge(building_df, left_on='building_id', right_on='building_i
 del building_df
 gc.collect()
 
-# In[36]:
 
 
 # Fill Weather Information
-weather_df = pd.read_csv('work/weather_test.csv')
+weather_df = pd.read_csv('F:\deeplearning_dataset\\ashrae-energy-prediction\weather_test.csv')
 weather_df = fill_weather_dataset(weather_df)
 weather_df = reduce_mem_usage(weather_df)
 
-# In[37]:
+
 
 
 # Merge Weather Data
@@ -303,13 +273,8 @@ test_df = test_df.merge(weather_df, how='left', on=['timestamp', 'site_id'])
 del weather_df
 gc.collect()
 
-# In[38]:
-
-
 # Features Engineering
 test_df = features_engineering(test_df)
-
-# In[39]:
 
 
 # prediction
@@ -322,14 +287,8 @@ for model in models:
     del model
     gc.collect()
 
-# In[40]:
-
-
 del test_df, models
 gc.collect()
-
-# In[41]:
-
 
 # submission
 results_df = pd.DataFrame({"row_id": row_ids, "meter_reading": np.clip(results, 0, a_max=None)})
@@ -337,7 +296,3 @@ del row_ids, results
 gc.collect()
 results_df.to_csv("submission.csv", index=False)
 
-# In[42]:
-
-
-results_df.head(20)
